@@ -115,8 +115,8 @@ void main() {
     frag_colour = vec4(1.0, 1.0, 1.0, 1.0);
   } else {
     // frag_colour = vec4(1.0 - texture(prev, uv).xyz, 1.0); // if it was working this would make me have a seizure
-    // frag_colour = vec4(texture(prev, uv).xyz * 0.9999, 1.0);
-    frag_colour = vec4(texture(prev, uv));
+    frag_colour = vec4(texture(prev, uv).xyz * 0.99, 1.0);
+    // frag_colour = vec4(texture(prev, uv));
     // frag_colour = vec4(0.0, 0.0, 0.0, 1.0);
   }
 }

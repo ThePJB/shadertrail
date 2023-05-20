@@ -17,22 +17,16 @@ let pgm;
 async function init() {
   canvas = document.getElementById("canvas");
   gl = canvas.getContext("webgl2", {antialias: false});
-  // gl = canvas.getContext("webgl2");
-  console.log(`Samples: ${gl.getParameter(gl.SAMPLES)}`);
-  texUnit = [gl.TEXTURE0, gl.TEXTURE1];
-  texUnitUf = [0, 1];
-
   if (!gl) {
     alert("Unable to initialize WebGL. Your browser may not support it.");
     return;
   }
 
+  texUnit = [gl.TEXTURE0, gl.TEXTURE1];
+  texUnitUf = [0, 1];
+
   window.addEventListener("resize", resizeCanvas);
-
-  // Set the viewport to match the canvas resolution
   gl.viewport(0, 0, canvas.width, canvas.height);
-
-  // Set the clear color to black
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
   
   {
@@ -44,14 +38,11 @@ async function init() {
   }
   gl.useProgram(pgm);
 
-
-  // Set up the position attribute
   const positionAttributeLocation = gl.getAttribLocation(pgm, "in_pos");
   const uvAttributeLocation = gl.getAttribLocation(pgm, "in_uv");
   timeUniformLocation = gl.getUniformLocation(pgm, 'time');
   aspectUniformLocation = gl.getUniformLocation(pgm, 'aspect');
   textureUniformLocation = gl.getUniformLocation(pgm, 'prev');
-
 
   const positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -82,6 +73,7 @@ function render() {
   gl.useProgram(pgm);
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb[curr_fb]);
   gl.activeTexture(texUnit[1 - curr_fb]);
+  gl.bindTexture(gl.TEXTURE_2D, fbTexture[1 - curr_fb]);
   gl.uniform1f(timeUniformLocation, time);
   gl.uniform1i(textureUniformLocation, texUnitUf[1 - curr_fb]);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -101,40 +93,6 @@ function render() {
   curr_fb = 1 - curr_fb;
 
   requestAnimationFrame(render);
-}
-
-// Helper function to fetch the source code of a shader
-async function fetchShaderSource(url) {
-  const response = await fetch(url);
-  const text = await response.text();
-  return text;
-}
-
-// Helper function to compile a shader
-function compileShader(source, type) {
-  const shader = gl.createShader(type);
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    console.error("An error occurred compiling the shaders:", gl.getShaderInfoLog(shader));
-    gl.deleteShader(shader);
-    return null;
-  }
-  return shader;
-}
-
-// Helper function to link a program
-function linkProgram(vertexShader, fragmentShader) {
-  const program = gl.createProgram();
-  gl.attachShader(program, vertexShader);
-  gl.attachShader(program, fragmentShader);
-  gl.linkProgram(program);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    console.error("Unable to link the program:", gl.getProgramInfoLog(program));
-    gl.deleteProgram(program);
-    return null;
-  }
-  return program;
 }
 
 function resizeCanvas() {
@@ -175,3 +133,46 @@ function resizeCanvas() {
 }
 
 init();
+
+
+
+
+
+
+
+
+
+
+// Helper function to fetch the source code of a shader
+async function fetchShaderSource(url) {
+  const response = await fetch(url);
+  const text = await response.text();
+  return text;
+}
+
+// Helper function to compile a shader
+function compileShader(source, type) {
+  const shader = gl.createShader(type);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error("An error occurred compiling the shaders:", gl.getShaderInfoLog(shader));
+    gl.deleteShader(shader);
+    return null;
+  }
+  return shader;
+}
+
+// Helper function to link a program
+function linkProgram(vertexShader, fragmentShader) {
+  const program = gl.createProgram();
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
+  gl.linkProgram(program);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error("Unable to link the program:", gl.getProgramInfoLog(program));
+    gl.deleteProgram(program);
+    return null;
+  }
+  return program;
+}
