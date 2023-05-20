@@ -10,10 +10,9 @@ let texUnitUf = new Array(2);
 let textureUniformLocation;
 let curr_fb = 0;
 
-let blitTexLocation;
-
-let blitPgm;
 let pgm;
+
+// maybe the association of framebuffers and textures needs to be reversed
 
 async function init() {
   canvas = document.getElementById("canvas");
@@ -53,16 +52,6 @@ async function init() {
   aspectUniformLocation = gl.getUniformLocation(pgm, 'aspect');
   textureUniformLocation = gl.getUniformLocation(pgm, 'prev');
 
-  {
-    const vertexShaderSource = await fetchShaderSource('shaders/blit.vert');
-    const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
-    const fragmentShaderSource = await fetchShaderSource('shaders/blit.frag');
-    const fragmentShader = compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER);
-    blitPgm = linkProgram(vertexShader, fragmentShader);
-  }
-  gl.useProgram(blitPgm);
-  blitTexLocation = gl.getUniformLocation(blitPgm, 'tex');
-
 
   const positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -81,9 +70,6 @@ async function init() {
   gl.enableVertexAttribArray(positionAttributeLocation);
   gl.enableVertexAttribArray(uvAttributeLocation);
 
-
-
-
   resizeCanvas();
 
   // Render the scene
@@ -95,18 +81,11 @@ function render() {
 
   gl.useProgram(pgm);
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb[curr_fb]);
-  gl.activeTexture(texUnit[1-curr_fb]);
+  gl.activeTexture(texUnit[1 - curr_fb]);
   gl.uniform1f(timeUniformLocation, time);
-  gl.uniform1i(textureUniformLocation, texUnitUf[1-curr_fb]);
+  gl.uniform1i(textureUniformLocation, texUnitUf[1 - curr_fb]);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-  // gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  // gl.useProgram(blitPgm);
-  // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-  // gl.activeTexture(texUnit[0]);
-  // gl.uniform1i(blitTexLocation, texUnitUf[0]);
-  // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fb[curr_fb]);
@@ -175,8 +154,8 @@ function resizeCanvas() {
   fb[0] = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb[0]);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fbTexture[0], 0);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   console.assert(gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.bindTexture(gl.TEXTURE_2D, null);
 
   fbTexture[1] = gl.createTexture();
@@ -190,8 +169,8 @@ function resizeCanvas() {
   fb[1] = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, fb[1]);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fbTexture[1], 0);
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   console.assert(gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
