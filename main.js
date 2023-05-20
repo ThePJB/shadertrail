@@ -3,9 +3,25 @@ let canvas;
 let timeUniformLocation;
 let aspectUniformLocation;
 
+let fbTexture = new Array(2);
+let fb = new Array(2);
+let texUnit = new Array(2);
+let texUnitUf = new Array(2);
+let textureUniformLocation;
+let curr_fb = 0;
+
+let blitTexLocation;
+
+let blitPgm;
+let pgm;
+
 async function init() {
   canvas = document.getElementById("canvas");
-  gl = canvas.getContext("webgl2");
+  gl = canvas.getContext("webgl2", {antialias: false});
+  // gl = canvas.getContext("webgl2");
+  console.log(`Samples: ${gl.getParameter(gl.SAMPLES)}`);
+  texUnit = [gl.TEXTURE0, gl.TEXTURE1];
+  texUnitUf = [0, 1];
 
   if (!gl) {
     alert("Unable to initialize WebGL. Your browser may not support it.");
@@ -20,22 +36,34 @@ async function init() {
   // Set the clear color to black
   gl.clearColor(0.0, 0.0, 0.0, 1.0);
   
-  // Compile the vertex shader
-  const vertexShaderSource = await fetchShaderSource('shaders/shader.vert');
-  const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
+  {
+    const vertexShaderSource = await fetchShaderSource('shaders/shader.vert');
+    const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
+    const fragmentShaderSource = await fetchShaderSource('shaders/shader.frag');
+    const fragmentShader = compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER);
+    pgm = linkProgram(vertexShader, fragmentShader);
+  }
+  gl.useProgram(pgm);
 
-  // Compile the fragment shader
-  const fragmentShaderSource = await fetchShaderSource('shaders/shader.frag');
-  const fragmentShader = compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER);
-
-  // Link the shaders into a program
-  const program = linkProgram(vertexShader, fragmentShader);
 
   // Set up the position attribute
-  const positionAttributeLocation = gl.getAttribLocation(program, "in_pos");
-  const uvAttributeLocation = gl.getAttribLocation(program, "in_uv");
-  timeUniformLocation = gl.getUniformLocation(program, 'time')
-  aspectUniformLocation = gl.getUniformLocation(program, 'aspect')
+  const positionAttributeLocation = gl.getAttribLocation(pgm, "in_pos");
+  const uvAttributeLocation = gl.getAttribLocation(pgm, "in_uv");
+  timeUniformLocation = gl.getUniformLocation(pgm, 'time');
+  aspectUniformLocation = gl.getUniformLocation(pgm, 'aspect');
+  textureUniformLocation = gl.getUniformLocation(pgm, 'prev');
+
+  {
+    const vertexShaderSource = await fetchShaderSource('shaders/blit.vert');
+    const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
+    const fragmentShaderSource = await fetchShaderSource('shaders/blit.frag');
+    const fragmentShader = compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER);
+    blitPgm = linkProgram(vertexShader, fragmentShader);
+  }
+  gl.useProgram(blitPgm);
+  blitTexLocation = gl.getUniformLocation(blitPgm, 'tex');
+
+
   const positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
   // const positions = [    0.0, 0.5, 0.0,    -0.5, -0.5, 0.0,    0.5, -0.5, 0.0  ];
@@ -53,6 +81,9 @@ async function init() {
   gl.enableVertexAttribArray(positionAttributeLocation);
   gl.enableVertexAttribArray(uvAttributeLocation);
 
+
+
+
   resizeCanvas();
 
   // Render the scene
@@ -61,11 +92,34 @@ async function init() {
 
 function render() {
   const time = performance.now() / 1000;
-  gl.uniform1f(timeUniformLocation, time);
-  
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+  gl.useProgram(pgm);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb[curr_fb]);
+  gl.activeTexture(texUnit[1-curr_fb]);
+  gl.uniform1f(timeUniformLocation, time);
+  gl.uniform1i(textureUniformLocation, texUnitUf[1-curr_fb]);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  // gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  // gl.useProgram(blitPgm);
+  // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  // gl.activeTexture(texUnit[0]);
+  // gl.uniform1i(blitTexLocation, texUnitUf[0]);
+  // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.bindFramebuffer(gl.READ_FRAMEBUFFER, fb[curr_fb]);
+  gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+  gl.blitFramebuffer(0, 0, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+  const error = gl.getError();
+  if (gl.getError() !== gl.NO_ERROR) {
+    console.error(`OpenGL error: ${error}`);
+  }
+
+  curr_fb = 1 - curr_fb;
 
   requestAnimationFrame(render);
 }
@@ -101,7 +155,6 @@ function linkProgram(vertexShader, fragmentShader) {
     gl.deleteProgram(program);
     return null;
   }
-  gl.useProgram(program);
   return program;
 }
 
@@ -111,6 +164,35 @@ function resizeCanvas() {
   canvas.height = window.innerHeight;
   gl.uniform1f(aspectUniformLocation, canvas.width/canvas.height);
   gl.viewport(0, 0, canvas.width, canvas.height);
+  fbTexture[0] = gl.createTexture();
+  gl.activeTexture(texUnit[0]);
+  gl.bindTexture(gl.TEXTURE_2D, fbTexture[0]);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  
+  // set up framebuffer
+  fb[0] = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb[0]);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fbTexture[0], 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  console.assert(gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+
+  fbTexture[1] = gl.createTexture();
+  gl.activeTexture(texUnit[1]);
+  gl.bindTexture(gl.TEXTURE_2D, fbTexture[1]);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, canvas.width, canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  
+  // set up framebuffer
+  fb[1] = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb[1]);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, fbTexture[1], 0);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  console.assert(gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
 init();
